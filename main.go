@@ -38,10 +38,10 @@ func main() {
 
 	// Add query tool
 	queryTool := mcp.NewTool("dgraph_query",
-		mcp.WithDescription("Execute a GraphQL+- query against Dgraph"),
+		mcp.WithDescription("Execute a DQL query against Dgraph"),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("The GraphQL+- query to execute"),
+			mcp.Description("The DQL query to execute"),
 		),
 		mcp.WithObject("variables",
 			mcp.Description("Variables for the query (optional)"),

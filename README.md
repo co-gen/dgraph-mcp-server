@@ -6,7 +6,7 @@ A Model Context Protocol (MCP) server implementation for Dgraph graph database, 
 
 This project implements an MCP server that allows LLM applications to interact with a Dgraph database. It provides tools for:
 
-- Executing GraphQL+- queries
+- Executing DQL queries
 - Performing mutations
 - Altering the schema
 - Retrieving the current schema
@@ -45,10 +45,10 @@ The server uses standard input/output for communication with LLM applications.
 
 #### 1. dgraph_query
 
-Execute a GraphQL+- query against Dgraph.
+Execute a DQL query against Dgraph.
 
 Parameters:
-- `query` (string, required): The GraphQL+- query to execute
+- `query` (string, required): The DQL query to execute
 - `variables` (object, optional): Variables for the query
 
 Example:
