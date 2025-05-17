@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/dgraph-io/dgo/v2"
@@ -17,11 +19,13 @@ import (
 // Default Dgraph connection settings
 const (
 	defaultDgraphHost = "localhost:9080"
+	defaultPort      = "8080"
 )
 
 func main() {
 	// Get Dgraph connection settings from environment or use defaults
 	dgraphHost := getEnv("DGRAPH_HOST", defaultDgraphHost)
+	port := getEnv("PORT", defaultPort)
 
 	// Connect to Dgraph
 	dgraphClient, err := connectToDgraph(dgraphHost)
@@ -85,10 +89,89 @@ func main() {
 	// Add resource with its handler
 	s.AddResource(schemaResource, createSchemaResourceHandler(dgraphClient))
 
-	// Start the stdio server
-	log.Println("Starting Dgraph MCP Server...")
-	if err := server.ServeStdio(s); err != nil {
-		log.Fatalf("Server error: %v", err)
+	// Set up HTTP server with SSE endpoint
+	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		// Set headers for SSE
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// Create a channel for client disconnection
+		clientGone := r.Context().Done()
+
+		// Get response controller for flushing
+		rc := http.NewResponseController(w)
+
+		// Create a channel to receive messages
+		msgChan := make(chan string)
+		defer close(msgChan)
+
+		// Start a goroutine to handle incoming messages
+		go func() {
+			decoder := json.NewDecoder(r.Body)
+			for {
+				var msg map[string]interface{}
+				if err := decoder.Decode(&msg); err != nil {
+					if err.Error() == "EOF" {
+						return
+					}
+					log.Printf("Error decoding message: %v", err)
+					continue
+				}
+
+				// Convert message to JSON bytes
+				msgBytes, err := json.Marshal(msg)
+				if err != nil {
+					log.Printf("Error marshaling message: %v", err)
+					continue
+				}
+
+				// Process the message through the MCP server
+				response := s.HandleMessage(r.Context(), json.RawMessage(msgBytes))
+				if response == nil {
+					log.Printf("Error processing message: got nil response")
+					continue
+				}
+
+				// Convert response to JSON bytes
+				responseBytes, err := json.Marshal(response)
+				if err != nil {
+					log.Printf("Error marshaling response: %v", err)
+					continue
+				}
+
+				// Send the response back through the channel
+				msgChan <- string(responseBytes)
+			}
+		}()
+
+		// Send messages to the client
+		for {
+			select {
+			case <-clientGone:
+				log.Println("Client disconnected")
+				return
+			case msg := <-msgChan:
+				// Format the SSE message
+				_, err := fmt.Fprintf(w, "data: %s\n\n", msg)
+				if err != nil {
+					log.Printf("Error writing to client: %v", err)
+					return
+				}
+				// Flush the response to ensure it's sent immediately
+				if err := rc.Flush(); err != nil {
+					log.Printf("Error flushing response: %v", err)
+					return
+				}
+			}
+		}
+	})
+
+	// Start the HTTP server
+	log.Printf("Starting Dgraph MCP Server on port %s...", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("HTTP server error: %v", err)
 	}
 }
 
