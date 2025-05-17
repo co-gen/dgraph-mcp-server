@@ -197,9 +197,9 @@ func createSchemaHandler(client *dgo.Dgraph) func(ctx context.Context, request m
 func createSchemaResourceHandler(client *dgo.Dgraph) func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		// Create operation to get schema
-		op := &api.Operation{
-			Schema: "",
-		}
+		// op := &api.Operation{
+		// 	Schema: "",
+		// }
 
 		// Execute operation
 		resp, err := client.NewTxn().Query(ctx, "schema {}")
